@@ -26,6 +26,26 @@ void setSockaddrin(int family,int port,struct sockaddr_in *str){
 	str->sin_addr.s_addr = htonl(INADDR_ANY);
 
 }
+
+int errread(int fd,void* buff,int size){
+
+	int err = read(fd,buff,size);
+	if(err < 0){
+		perror("Eroare la read");
+		exit(-1);
+	}
+	return err;
+}
+
+int errwrite(int fd,const void* buff,int size){
+
+	int err = write(fd,buff,size);
+	if(err < 0){
+		perror("Eroare la write");
+		exit(-1);
+	}
+	return err;
+}
 int main(int argc, char const *argv[])
 {
 	struct sockaddr_in server;	// structura folosita de server
@@ -58,6 +78,10 @@ int main(int argc, char const *argv[])
 
     	int descDeClient;
     	int lengthFrom = sizeof(from);
+    	int socketpair[2];
+
+    	char msgFromChild[64];
+    	char msgFromClient[64];
     	printf ("[server]Asteptam la portul %d...\n",PORT);
       	fflush (stdout);
 
@@ -68,7 +92,11 @@ int main(int argc, char const *argv[])
 	         continue;
 	       }
     	printf("Am primit un client\n");
-
+    	if(socketpair(AF_UNIX, SOCK_STREAM, 0, socketpair) < 0) 
+      	{ 
+        	perror("Eroare la socketpair"); 
+      	  	exit(-1); 
+      	}
     	child = fork();
     	if(child <= -1){
 
@@ -79,9 +107,14 @@ int main(int argc, char const *argv[])
       	if(child == 0){
 
       		close(socketDesc);
+      		close(socketpair[1]);
       		printf("Hello from the child\n");
+      		errread(descDeClient,msgFromClient,64*sizeof(msgFromClient));
       		close (descDeClient);
       	}
+
+      	close(socketpair[2]);
+      	errread()
 
       	close(descDeClient);
     	while(waitpid(-1,NULL, WNOHANG) > 0);
