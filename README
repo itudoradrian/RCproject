@@ -1,0 +1,71 @@
+I. NECESSARY LIBRARIES
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+dictionar.txt
+nrOfPlayers.txt
+
+II. HOW TO INSTALL
+
+To install you need server.c and client.c sources.
+
+First you need to compile the sources:
+
+1.Compile server with: cc -lpthread server.c -o server
+2.Compile client with: gcc client.c -o client
+
+
+III. EXPLANATIONS
+
+To run both programs simultaneously you need 2 terminals. But because it is a game for n players you can open at most n terminals, where n is the value specified in the noOfPlayers.txt. The game is desing to serve players concurrently. When it is run, the program generates n threads. Each thread will be blocked in the accept() call and waits for clients to connect. When a client connect it recieves a room number and if he is the first he gets the opportunity to start the game by chosing  the first letter. After a player connect to the room and the room is not full the player waits for it to fill. A room has the capacity of PLAYERS_PER_ROOM macro, which in our case is 3. When the room is full the game commences. 
+The server is designed to send communicate with the client with signals:
+
+#define ASK_LETTER 0
+#define ASK_WORD 1
+#define WRONG_ANSWER 2
+#define RIGHT_ANSWER 3
+#define YOUR_TURN 4
+#define WELCOME 5
+#define ROOMWAIT 6
+#define START_GAME 7
+#define YOU_WON 8
+
+When the server decides to take an action it send the related signal to the client to inform him on what it has to do, or what happenes now int the game.
+The client reacts to any signal the he recieves instantly.
+
+The game has the following steps: 
+1. After room connection and filling the server asks the first client to chose a letter. The server reads the letter to use it in word validation letter.
+2. After the letter is registered the server asks for a word.
+3. After receving the word it calls the validation function.The functions searches for word in the dictionary.
+4. If the word is valid it informs the client that the word is right and to wait for the next turn.
+5. If the word is not right then the server tells the client "Game Over". And removes the entry of the client from the room and closes the thread.
+
+For the rooms the server uses an array of type Room which is a user defined type
+typedef struct {
+  
+  int playerTurn; 
+  int turn;
+  int playersId[PLAYERS_PER_ROOM];
+  int numarJucatori;
+
+}Room;
+
+IV. BIBLIOGRAPHY
+
+I used the following sources for the code:
+
+
+https://stackoverflow.com/questions/174531/easiest-way-to-get-files-contents-in-c
+https://profs.info.uaic.ro/~computernetworks/files/NetEx/S12/ServerConcThread/servTcpConcTh2.c
+https://profs.info.uaic.ro/~computernetworks/files/NetEx/S12/ServerConcThread/cliTcpNr.c
+
