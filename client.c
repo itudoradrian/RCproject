@@ -10,10 +10,9 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <iostream>
-using namespace std;
 
 
+#define BUFFER_READ 256
 #define ASK_LETTER 0
 #define ASK_WORD 1
 #define WRONG_ANSWER 2
@@ -34,15 +33,22 @@ char* readinput(size_t *size){
 
 	char buffer;
 	char* input;
-	int sizebuff = 64;
+	int sizebuff = 256;
 	int i = 0;
-	printf("Prezent in READINPUT, dupa declaratii\n");
+	//printf("Prezent in READINPUT, dupa declaratii\n");
 	input = malloc(sizebuff);
-	printf("Dupa malloc\n");
-	do{
-		printf("DO WHILE STARTS\n");
+	//printf("Dupa malloc\n");
+	i = read(0,input,sizebuff);
+	if(i <= 0){
+
+		printf("Eroare sau nu am citit nimic %d\n", i);
+		exit(-1);
+	}
+	
+	/*do{
+		//printf("DO WHILE STARTS\n");
 		buffer = getchar();
-		printf("DUPA GETCHAR\n");
+		//printf("DUPA GETCHAR\n");
 
 		if(buffer == '\n'){
 
@@ -51,21 +57,21 @@ char* readinput(size_t *size){
 
 		if(i > sizebuff){
 
-			printf("MARIM  BUFFER\n");
+			//printf("MARIM  BUFFER\n");
 			sizebuff *= 2;
 			input = realloc(input,sizebuff);
-		}
+		}*/
 
-		input[i] = buffer;
-		i++;
-		printf("FINAL DO WHILE\n");
+		//input[i] = buffer;
+		
+		//printf("FINAL DO WHILE\n");
 
-	}while(1);
-	printf("Am terminat de citit de la tastatura\n");
+	//}while(1);
+	//printf("Am terminat de citit de la tastatura\n");
 
 	input[i] = '\0';
 	*size = i;
-	printf("Am pus \\0 si acum ies din functie \n");
+	//printf("Am pus \\0 si acum ies din functie \n");
 	return input;
 }
 int main (int argc, char *argv[])
@@ -106,8 +112,9 @@ int main (int argc, char *argv[])
     int isValid = 1;
     int semnal;
     char litera;
-    char word[READ_BUFFER];
+    char* word;
    	int wordSize;
+   	char c;
    
     while(isValid){
 
@@ -120,7 +127,8 @@ int main (int argc, char *argv[])
     	if(semnal == ASK_LETTER){
 
     		printf("Introdu o litera: \n");
-    		scanf("%c",&litera);
+    		read(0,&litera,1);
+    		
     		if(write(sd,&litera,sizeof(char)) < 0){
 
     			perror ("[client]Eroare la write() spre server.\n");
@@ -133,17 +141,28 @@ int main (int argc, char *argv[])
 
     		
     		printf("Gimme THE WORD which starts with letter %c: \n", litera);
+    		
     		//word = readinput(&wordSize);
     		//fgets (word, READ_BUFFER, 0);      /* read in a line */
-    		char i = getchar();
-    		wordSize = 1;
+    		//char i = getchar();
+    		//wordSize = 1;
+    		read(0,&c,1);
+    		word = malloc(BUFFER_READ);
+    		wordSize = read(0,word,BUFFER_READ);
+    		wordSize--;
+    		word[wordSize] = '\0';
+    		if(wordSize < 0){
+
+    			printf("eroare la read\n");
+    			exit(-1);
+    		}
     		
-    		/*if(write(sd,&wordSize,sizeof(int)) < 0){
+    		if(write(sd,&wordSize,sizeof(int)) < 0){
 
                 perror ("[client]Eroare la write() spre client.\n");
                 exit(-1);
-              }*/
-             if(write(sd,&i,wordSize) < 0){
+              }
+             if(write(sd,word,wordSize) < 0){
 
                 perror ("[client]Eroare la write() spre client.\n");
                 exit(-1);

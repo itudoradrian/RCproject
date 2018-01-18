@@ -91,21 +91,27 @@ int readFromConfiguration(const char *fileName){
   return numar;
 }
 
-void setupDictionar(char *dictionar,int *size,const char *fisier){
+void setupDictionar(char *dictionar,int *dimensiuneDic,const char *fisier){
 
 dictionar = 0;
+int size;
 FILE * dicFile = fopen (fisier, "rb");
 
 if (dicFile)
 {
   fseek (dicFile, 0, SEEK_END);
-  *size = ftell (dicFile);
+  size = ftell (dicFile);
   fseek (dicFile, 0, SEEK_SET);
-  dictionar = malloc (*size);
+  dictionar = malloc (size);
   if (dictionar)
   {
-    fread (dictionar, 1, *size, dicFile);
+    fread (dictionar, 1, size, dicFile);
   }
+  dictionar[size] = '\0';
+  if (dictionar[size] == '\0' )printf("AM NULL CHARAC %c %c\n",dictionar[size-2],dictionar[size-1]);
+  else printf("NU STIU CE I CU MINE\n");
+  
+  *dimensiuneDic = size;
   fclose (dicFile);
 }
 }
@@ -236,6 +242,8 @@ void sendSignal(int client,int signal){
 }
 char* readWordFromClient(int client){
 
+
+  printf("SUNT IN READ WORD FROM CLIENT\n");
   int size;
   char *word;
   if(read(client,&size,sizeof(int)) < 0){
@@ -243,20 +251,22 @@ char* readWordFromClient(int client){
       perror ("[client]Eroare la write() spre client.\n");
       exit(-1);
   }
+
   if(size == 0){
 
     printf("NU am citit nimic\n");
     exit(-1);
   }
-  //printf("AM CITIT SIZE WORD %d\n", size);
+  printf("AM CITIT SIZE WORD %d\n", size);
   word = malloc(size);
-  if(read(client,&word,size) < 0){
+  if(read(client,word,size) < 0){
 
       perror ("[client]Eroare la write() spre client.\n");
       exit(-1);
   }
-  //printf("WORD %s\n", word);
+  printf("WORD %s\n", word);
   word[size] = '\0';
+  if (word[size] == '\0' )printf("AM NULL CHARAC %c %c\n", word[size-2],word[size-1]);
   return word;
 
 }
@@ -272,6 +282,8 @@ char readCharFormClient(int client){
 }
 int validateWord(char* word,char primalit){
 
+
+  printf("Am intrat in validate word\n");
   if(dictionarSize < 1){
 
     printf("Nu exista dictionar\n");
@@ -279,14 +291,16 @@ int validateWord(char* word,char primalit){
   }
   if(word[0] != primalit){
 
+    printf("Litere diferite\n");
     return 0;
   }
-  for (int i = 0; i < dictionarSize; i++)
-  {
-    if(strstr(dictionar,word) != NULL){
 
+  printf("Verificam subsir\n");
+  if(strstr(dictionar,word) != NULL){
+
+      printf("Its a match\n");
       return 1;
-    }
+    
   }
   return 0;
 }
@@ -311,7 +325,7 @@ void raspunde(int cl,int idThread,int room)
         sendSignal(cl,START_GAME);
         printf("[THREAD %d] START_GAME\n", idThread);
 
-        while(isValid){//while he is in the game
+        do{//while he is in the game
 
           if(threadsList[idThread] == roomPool[camera].playerTurn){
 
@@ -363,13 +377,14 @@ void raspunde(int cl,int idThread,int room)
               sendSignal(cl,WRONG_ANSWER);
               printf("[THREAD %d] WRONG_ANSWER\n", idThread);
             }
+
+            pthread_mutex_lock(&mlock);
+            roomPool[camera].turn++;
+            printf("[THREAD %d] SCHIMBAT TURA IN MUTEX\n", idThread);
+            pthread_mutex_unlock(&mlock);
           }
           
-          pthread_mutex_lock(&mlock);
-          roomPool[camera].turn++;
-          printf("[THREAD %d] SCHIMBAT TURA IN MUTEX\n", idThread);
-          pthread_mutex_unlock(&mlock);
-        }
+        }while(isValid);
         
         pthread_mutex_lock(&mlock);
         roomPool[camera].numarJucatori--;
