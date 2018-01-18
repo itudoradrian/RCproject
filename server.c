@@ -19,6 +19,9 @@
 #define RIGHT_ANSWER 3
 #define YOUR_TURN 4
 #define WELCOME 5
+#define ROOMWAIT 6
+#define START_GAME 7
+#define YOU_WON 8
 #define MAX_CONNECTIONS 100
 #define SENDING_ROOM_NUMBER 5
 
@@ -39,16 +42,33 @@ char *dictionar;
 pthread_t* threadsList;
 pthread_mutex_t mlock=PTHREAD_MUTEX_INITIALIZER;
 
+#define PLAYERS_PER_ROOM 3
+#define SIZE_OF_ROOM_POOL 20
 typedef struct {
   
-  int playerTurn = 0;
-  int turn = 0;
-  int playersId[3];
-  int numarJucatori = 0;
+  int playerTurn; 
+  int turn;
+  int playersId[PLAYERS_PER_ROOM];
+  int numarJucatori;
 
 }Room;
 
-Room roomPool[20];
+Room roomPool[SIZE_OF_ROOM_POOL];
+
+void initRoomPool(Room *pool){
+
+  int index;
+  for(index = 0; index < SIZE_OF_ROOM_POOL; index++){
+
+    pool[index].playerTurn = 0;
+    pool[index].turn = 0;
+    pool[index].numarJucatori = 0;
+    int j;
+    for(j=0;j < PLAYERS_PER_ROOM;j++){
+      pool[index].playersId[j] = 0;
+    }
+  }
+}
 
 int readFromConfiguration(const char *fileName){
 
@@ -91,7 +111,7 @@ if (dicFile)
 }
 
 
-void raspunde(int cl,int idThread);
+void raspunde(int cl,int idThread,int camera);
 int main (int argc, char *argv[])
 {
   
@@ -109,7 +129,7 @@ int main (int argc, char *argv[])
   port = atoi(argv[1]);
   
   setupDictionar(dictionar,&dictionarSize,DICTIONAR);
-  nthreads = readFromConfiguration(CONFIGURATION);
+  nthreads = 3;
   if(nthreads < 2){
         
     fprintf(stderr,"Eroare: Prea putin playeri...");
@@ -169,6 +189,7 @@ void threadCreate(int i)
 void *treat(void * arg)
 {   
     int client;
+    int i = (int)arg;
             
     struct sockaddr_in from; 
       bzero (&from, sizeof (from));
@@ -191,16 +212,16 @@ void *treat(void * arg)
       
       if(roomPool[camera].playerTurn == 0){
 
-        roomPool[camera].playerTurn = (int)arg;
+        roomPool[camera].playerTurn = threadsList[i];
       }
-      roomPool[camera].playersId[roomPool[camera].numarJucatori] = (int)arg;
+      roomPool[camera].playersId[roomPool[camera].numarJucatori] = threadsList[i];
       roomPool[camera].numarJucatori++;
       if(connections % 3 == 0){
 
         camera++;
       }
       pthread_mutex_unlock(&mlock);
-      raspunde(client,(int)arg,camera); //procesarea cererii
+      raspunde(client,i,camera); //procesarea cererii
       /* am terminat cu acest client, inchidem conexiunea */
       close (client);     
       
@@ -213,22 +234,30 @@ void sendSignal(int client,int signal){
     exit(-1);
   }
 }
-int readWordFromClient(int client,char *word){
+char* readWordFromClient(int client){
 
   int size;
+  char *word;
   if(read(client,&size,sizeof(int)) < 0){
 
       perror ("[client]Eroare la write() spre client.\n");
       exit(-1);
   }
+  if(size == 0){
+
+    printf("NU am citit nimic\n");
+    exit(-1);
+  }
+  //printf("AM CITIT SIZE WORD %d\n", size);
   word = malloc(size);
   if(read(client,&word,size) < 0){
 
       perror ("[client]Eroare la write() spre client.\n");
       exit(-1);
   }
+  //printf("WORD %s\n", word);
   word[size] = '\0';
-  return size;
+  return word;
 
 }
 char readCharFormClient(int client){
@@ -265,38 +294,95 @@ void raspunde(int cl,int idThread,int room)
 {
         int isValid = 1;
         int lungimeCuvant;
+        int index;
+
 
         char litera;
         char *cuvant;
 
         int camera = room;
         
-
         sendSignal(cl,WELCOME);
+        printf("[THREAD %d] WELCOME\n", idThread);
+        
+        sendSignal(cl,ROOMWAIT);
+        printf("[THREAD %d] ROOMWAIT\n", idThread);
+        
+        sendSignal(cl,START_GAME);
+        printf("[THREAD %d] START_GAME\n", idThread);
+
         while(isValid){//while he is in the game
 
-          if(idThread == playerTurn){
+          if(threadsList[idThread] == roomPool[camera].playerTurn){
 
             sendSignal(cl,YOUR_TURN);
-            if(turn == 0){
+            printf("[THREAD %d] YOUR_TURN\n", idThread);
+            if(roomPool[camera].turn == 0){
 
               sendSignal(cl,ASK_LETTER);
+              printf("[THREAD %d] ASK_LETTER\n", idThread);
               litera = readCharFormClient(cl);
 
             }
 
             sendSignal(cl,ASK_WORD);
-            lungimeCuvant = readWordFromClient(cl,cuvant);
+            printf("[THREAD %d] ASK_WORD\n", idThread);
+            cuvant = readWordFromClient(cl);
+
+            printf("[THREAD %d] Am citit cuvantul %s\n", idThread,cuvant);
 
             isValid = validateWord(cuvant,litera);
+            printf("[THREAD %d] Am apelat validateWord\n", idThread);
 
             if(isValid) {
               sendSignal(cl,RIGHT_ANSWER);
-              playerTurn++;
+              printf("[THREAD %d] RIGHT_ANSWER, adica e valid\n", idThread);
+
+              if(roomPool[camera].numarJucatori == 1){
+
+                sendSignal(cl,YOU_WON);
+                printf("[THREAD %d] YOU_WON, un if cam sumbru\n", idThread);
+              }
+              index = roomPool[camera].turn % roomPool[camera].numarJucatori;
+              printf("[THREAD %d] calc INDEX schimbare tura\n", idThread);
+              while(roomPool[camera].playersId[index] == 0){
+
+                index = (index + 1) % roomPool[camera].numarJucatori;
+              }
+              printf("[THREAD %d] WHILE index valid\n", idThread);
+              
+              pthread_mutex_lock(&mlock);
+              printf("[THREAD %d] Sunt in mutex\n", idThread);
+              roomPool[camera].playerTurn = roomPool[camera].playersId[index];
+              pthread_mutex_unlock(&mlock);
+              printf("[THREAD %d] MUTEX OUT, SCHIMBAT PLAYER\n", idThread);
+
+            }
+            else{
+
+              sendSignal(cl,WRONG_ANSWER);
+              printf("[THREAD %d] WRONG_ANSWER\n", idThread);
             }
           }
-          turn++;
+          
+          pthread_mutex_lock(&mlock);
+          roomPool[camera].turn++;
+          printf("[THREAD %d] SCHIMBAT TURA IN MUTEX\n", idThread);
+          pthread_mutex_unlock(&mlock);
         }
+        
+        pthread_mutex_lock(&mlock);
+        roomPool[camera].numarJucatori--;
+        roomPool[camera].playersId[roomPool[camera].playerTurn] = 0;
+        pthread_mutex_unlock(&mlock);
+        printf("[THREAD %d] Dupa mutex, schimbat tura\n", idThread);
+        index = roomPool[camera].turn % roomPool[camera].numarJucatori;
+        while(roomPool[camera].playersId[index] == 0){
 
-        sendSignal(WRONG_ANSWER);
+          index = (index + 1) % roomPool[camera].numarJucatori;
+        }
+              
+        pthread_mutex_lock(&mlock);
+        roomPool[camera].playerTurn = roomPool[camera].playersId[index];
+        pthread_mutex_unlock(&mlock);
 }

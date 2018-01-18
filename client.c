@@ -10,6 +10,9 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <iostream>
+using namespace std;
+
 
 #define ASK_LETTER 0
 #define ASK_WORD 1
@@ -17,8 +20,11 @@
 #define RIGHT_ANSWER 3
 #define YOUR_TURN 4
 #define WELCOME 5
+#define ROOMWAIT 6
+#define START_GAME 7
+#define YOU_WON 8
 
-
+#define READ_BUFFER 256
 
 extern int errno;
 
@@ -30,11 +36,13 @@ char* readinput(size_t *size){
 	char* input;
 	int sizebuff = 64;
 	int i = 0;
-
+	printf("Prezent in READINPUT, dupa declaratii\n");
 	input = malloc(sizebuff);
+	printf("Dupa malloc\n");
 	do{
-
+		printf("DO WHILE STARTS\n");
 		buffer = getchar();
+		printf("DUPA GETCHAR\n");
 
 		if(buffer == '\n'){
 
@@ -43,18 +51,21 @@ char* readinput(size_t *size){
 
 		if(i > sizebuff){
 
+			printf("MARIM  BUFFER\n");
 			sizebuff *= 2;
 			input = realloc(input,sizebuff);
 		}
 
 		input[i] = buffer;
 		i++;
+		printf("FINAL DO WHILE\n");
 
 	}while(1);
+	printf("Am terminat de citit de la tastatura\n");
 
 	input[i] = '\0';
 	*size = i;
-
+	printf("Am pus \\0 si acum ies din functie \n");
 	return input;
 }
 int main (int argc, char *argv[])
@@ -95,6 +106,8 @@ int main (int argc, char *argv[])
     int isValid = 1;
     int semnal;
     char litera;
+    char word[READ_BUFFER];
+   	int wordSize;
    
     while(isValid){
 
@@ -118,16 +131,19 @@ int main (int argc, char *argv[])
 
     	if(semnal == ASK_WORD){
 
-    		char *word;
-    		int wordSize;
+    		
     		printf("Gimme THE WORD which starts with letter %c: \n", litera);
-    		word = readinput(&wordSize);
-    		if(write(sd,&wordSize,sizeof(int)) < 0){
+    		//word = readinput(&wordSize);
+    		//fgets (word, READ_BUFFER, 0);      /* read in a line */
+    		char i = getchar();
+    		wordSize = 1;
+    		
+    		/*if(write(sd,&wordSize,sizeof(int)) < 0){
 
                 perror ("[client]Eroare la write() spre client.\n");
                 exit(-1);
-              }
-             if(write(sd,word,wordSize) < 0){
+              }*/
+             if(write(sd,&i,wordSize) < 0){
 
                 perror ("[client]Eroare la write() spre client.\n");
                 exit(-1);
@@ -137,7 +153,7 @@ int main (int argc, char *argv[])
 		if(semnal == WRONG_ANSWER){
 
 			printf("You got the wrong word, GAME OVER\n");
-			exit(0);
+			isValid = 0;
 		}
 
 		if(semnal == RIGHT_ANSWER){
@@ -153,7 +169,19 @@ int main (int argc, char *argv[])
 
 			printf("Welcome to the game!\n");
 		}
+		if(semnal == ROOMWAIT){
 
+			printf("Wait till the room is fool\n");
+		}
+		if(semnal == START_GAME){
+
+			printf("So the room is full, START\n");
+		}
+		if(semnal == YOU_WON){
+
+			printf("This is a miracle!!!!\n");
+		}
+		semnal = -1;
     }
 
     	
